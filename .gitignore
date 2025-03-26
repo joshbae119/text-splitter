@@ -39,5 +39,4 @@ chat_*.txt
 
 sample-test.eml
 
-./output
-./output/*  
+/output
