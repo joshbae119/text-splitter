@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
+
 import re
 import os
 import sys
 from datetime import datetime, timedelta
 
-def split_chat_by_date(input_file):
-    output_dir = '/home/wsl2-lucky/projects/medi-bot/output'
+def split_chat_by_date(input_file, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     print(f"'{output_dir}' 디렉토리가 생성되었습니다.")
+    print(f"처리할 파일: {input_file}")
 
     date_pattern = r'\d{4}년 \d{1,2}월 \d{1,2}일'
     time_pattern = r'(오전|오후)\s*(\d{1,2}):(\d{1,2})'
@@ -16,6 +18,7 @@ def split_chat_by_date(input_file):
 
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
+            print(f"파일 '{input_file}' 읽기 시작...")
             for line in f:
                 # 필요 없는 라인 제거
                 if '오픈채팅봇' in line or '님이 나갔습니다.' in line or '님이 들어왔습니다.' in line:
@@ -67,7 +70,14 @@ def split_chat_by_date(input_file):
             print(f"파일 쓰기 오류: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("사용법: python3 text-splitter.py <입력 파일 경로>")
-        sys.exit(1)
-    split_chat_by_date(sys.argv[1])
+    input_dir = './input/'
+    output_dir = './output/'
+
+    # 입력 디렉토리의 모든 파일 처리 (확장자 무시)
+    for filename in os.listdir(input_dir):
+        if filename.endswith('.txt') or filename.endswith('.eml'):  # .txt 및 .eml 파일 처리
+            input_file_path = os.path.join(input_dir, filename)
+            print(f"처리 중인 파일: {input_file_path}")
+            split_chat_by_date(input_file_path, output_dir)
+        else:
+            print(f"제외된 파일: {filename}")
