@@ -6,8 +6,9 @@ from typing import Dict, List, Optional
 import aiofiles
 from collections import defaultdict
 
-app = FastAPI()
-input_directory = './input'  # dev
+app = FastAPI()  # FastAPI 인스턴스 생성 (주석 해제)
+input_directory = '/app/input'  #production
+# input_directory = './input' #dev
 
 # 정규식 미리 컴파일
 DATETIME_PATTERN = re.compile(r'(\d{4}년 \d{1,2}월 \d{1,2}일) (오[전후]) (\d{1,2}):(\d{1,2})')
@@ -46,7 +47,7 @@ def process_kakao_chat(file_path: str) -> Optional[Dict[str, str]]:
         offset = 0
         while True:
             line = file.readline()
-            if not line:  # EOF
+            if not line:
                 break
             header += line
             offset += len(line.encode('utf-8'))
@@ -77,19 +78,24 @@ async def get_filtered_lines(file_path: str, start_time: datetime, end_time: dat
                     filtered_lines.append(line.strip())
     return filtered_lines, first_message_time
 
+@app.get("/")
+async def health_check():
+    """서버 상태 확인을 위한 Health-check 엔드포인트"""
+    return {"status": "healthy", "message": "Server is running normally"}
+
 @app.get("/items/{item_name}")
 async def read_item(item_name: str, page: int = 1):
     """특정 파일의 대화 내용을 페이지 단위로 JSON 형태로 반환"""
     file_path = os.path.join(input_directory, item_name)
+    print(f"Requested file_path: {file_path}")
+    print(f"File exists: {os.path.isfile(file_path)}")
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
-    # 헤더 파싱 (동기)
     chat_data = process_kakao_chat(file_path)
     if not chat_data:
         raise HTTPException(status_code=422, detail="Invalid chat format")
 
-    # 날짜 인덱싱 (비동기)
     offsets = await index_chat_file(file_path)
     dates = sorted(offsets.keys())
     if not dates:
@@ -97,28 +103,23 @@ async def read_item(item_name: str, page: int = 1):
     if page < 1 or page > len(dates):
         raise HTTPException(status_code=400, detail="Invalid page number")
 
-    # 현재 페이지의 날짜 범위 설정
     current_date = dates[page - 1]
     date_obj = datetime.strptime(current_date, '%Y년 %m월 %d일')
     start_time = date_obj.replace(hour=4, minute=0)
     end_time = (date_obj + timedelta(days=1)).replace(hour=3, minute=59)
 
-    # 필터링된 대화 내용과 첫 메시지 시간 가져오기
     filtered_lines, first_message_time = await get_filtered_lines(file_path, start_time, end_time, chat_data["content_start"])
 
-    # 날짜 포맷팅
     if first_message_time:
         date_with_time = f"{date_obj.strftime('%Y-%m-%d')}_{first_message_time.strftime('%H:%M:%S')}"
     else:
         date_with_time = date_obj.strftime('%Y-%m-%d')
 
-    # 영어 제목 및 고유 제목 생성
     english_title = None
     if "피부과 안티에이징" in chat_data["title"]:
         english_title = "skin-anti-aging"
     unique_title = f"{english_title}_{date_with_time}" if english_title else None
 
-    # 원래 JSON 포맷 유지
     return {
         "korean_title": chat_data["title"],
         "english_title": english_title,
