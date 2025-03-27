@@ -7,7 +7,8 @@ import aiofiles
 from collections import defaultdict
 
 app = FastAPI()  # FastAPI 인스턴스 생성
-input_directory = './input'  # dev
+input_directory = '/app/input'  #production
+# input_directory = './input' #dev
 
 # 정규식 미리 컴파일
 DATETIME_PATTERN = re.compile(r'(\d{4}년 \d{1,2}월 \d{1,2}일) (오[전후]) (\d{1,2}):(\d{1,2})')
