@@ -92,7 +92,14 @@ def read_item(item_name: str, page: int = 1):
     
     datetime_pattern = r'(\d{4}년 \d{1,2}월 \d{1,2}일) (오[전후]) (\d{1,2}):(\d{1,2})'
     
+    # 제외할 메시지 패턴 정의
+    exclude_patterns = ['오픈채팅봇', '님이 나갔습니다.', '님이 들어왔습니다.']
+    
     for line in chat_data["content"].splitlines():
+        # 제외할 메시지가 포함된 라인 건너뛰기
+        if any(pattern in line for pattern in exclude_patterns):
+            continue
+            
         match = re.search(datetime_pattern, line)
         if match:
             date_str, period, hour, minute = match.groups()
