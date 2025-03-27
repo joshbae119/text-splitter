@@ -6,9 +6,8 @@ from typing import Dict, List, Optional
 import aiofiles
 from collections import defaultdict
 
-app = FastAPI()  # FastAPI 인스턴스 생성 (주석 해제)
-input_directory = '/app/input'  #production
-# input_directory = './input' #dev
+app = FastAPI()  # FastAPI 인스턴스 생성
+input_directory = './input'  # dev
 
 # 정규식 미리 컴파일
 DATETIME_PATTERN = re.compile(r'(\d{4}년 \d{1,2}월 \d{1,2}일) (오[전후]) (\d{1,2}):(\d{1,2})')
@@ -131,3 +130,53 @@ async def read_item(item_name: str, page: int = 1):
         "total_pages": len(dates),
         "content": "\n".join(filtered_lines)
     }
+
+@app.get("/meta/{item_name}")
+async def get_meta(item_name: str):
+    """파일의 메타 정보만 반환 (content 제외, 페이지네이션 없이)"""
+    file_path = os.path.join(input_directory, item_name)
+    print(f"Requested file_path: {file_path}")
+    print(f"File exists: {os.path.isfile(file_path)}")
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    chat_data = process_kakao_chat(file_path)
+    if not chat_data:
+        raise HTTPException(status_code=422, detail="Invalid chat format")
+
+    offsets = await index_chat_file(file_path)
+    dates = sorted(offsets.keys())
+    if not dates:
+        raise HTTPException(status_code=422, detail="No dates found in content")
+
+    # 모든 날짜에 대한 메타 정보를 수집
+    meta_data = []
+    for idx, current_date in enumerate(dates, 1):
+        date_obj = datetime.strptime(current_date, '%Y년 %m월 %d일')
+        start_time = date_obj.replace(hour=4, minute=0)
+        end_time = (date_obj + timedelta(days=1)).replace(hour=3, minute=59)
+
+        filtered_lines, first_message_time = await get_filtered_lines(file_path, start_time, end_time, chat_data["content_start"])
+
+        if first_message_time:
+            date_with_time = f"{date_obj.strftime('%Y-%m-%d')}_{first_message_time.strftime('%H:%M:%S')}"
+        else:
+            date_with_time = date_obj.strftime('%Y-%m-%d')
+
+        english_title = None
+        if "피부과 안티에이징" in chat_data["title"]:
+            english_title = "skin-anti-aging"
+        unique_title = f"{english_title}_{date_with_time}" if english_title else None
+
+        meta_data.append({
+            "korean_title": chat_data["title"],
+            "english_title": english_title,
+            "unique_title": unique_title,
+            "file_save_date": chat_data["saved_date"],
+            "date": date_with_time,
+            "total_items": len(filtered_lines),
+            "page": idx,
+            "total_pages": len(dates)
+        })
+
+    return meta_data
